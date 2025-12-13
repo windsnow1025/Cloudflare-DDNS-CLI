@@ -1,23 +1,42 @@
 import requests
 import logging
 
+IP_SERVICES = {
+    "international": {
+        "A": "https://ipv4.icanhazip.com/",
+        "AAAA": "https://ipv6.icanhazip.com/"
+    },
+    "china": {
+        "A": "https://ip.3322.net/",
+        "AAAA": "https://speed.neu6.edu.cn/getIP.php"
+    }
+}
+
 
 class DDNS:
-    def __init__(self, email: str, global_api_key: str, dns_record_name: str):
+    def __init__(self, email: str, global_api_key: str, dns_record_name: str, ip_service: str):
         self.__headers = {
             "X-Auth-Email": email,
             "X-Auth-Key": global_api_key,
             "Content-Type": "application/json"
         }
         self.dns_record_name = dns_record_name
+        self.ip_service = ip_service
         self.domain_id = None
         self.dns_record_id = None
         self.dns_record_type = None
         self.__init_dns_record()
 
     def __init_dns_record(self):
-        self.domain_id = self.__fetch_domain_id(self.__headers, self.__get_domain_name(self.dns_record_name))
-        self.dns_record_id, self.dns_record_type, _ = self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name)
+        self.domain_id = self.__fetch_domain_id(
+            self.__headers,
+            self.__get_domain_name(self.dns_record_name)
+        )
+        self.dns_record_id, self.dns_record_type, _ = self.__fetch_dns_record(
+            self.__headers,
+            self.domain_id,
+            self.dns_record_name
+        )
 
     def update_dns_record(self, new_ip: str):
         url = f"https://api.cloudflare.com/client/v4/zones/{self.domain_id}/dns_records/{self.dns_record_id}"
@@ -38,6 +57,19 @@ class DDNS:
     def get_record_content(self):
         return self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name)[2]
 
+    def fetch_current_ip(self) -> str | None:
+        if self.dns_record_type not in ("A", "AAAA"):
+            raise ValueError("Unsupported DNS record type.")
+
+        url = IP_SERVICES[self.ip_service][self.dns_record_type]
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.text.strip()
+        except requests.RequestException as e:
+            logging.error(f"Failed to get IP address: {e}")
+            return None
+
     @staticmethod
     def __get_domain_name(dns_record_name: str):
         return ".".join(dns_record_name.split(".")[-2:])
@@ -56,7 +88,9 @@ class DDNS:
         return None
 
     @staticmethod
-    def __fetch_dns_record(headers: dict[str, str], domain_name_id: str, dns_record_name: str) -> tuple[str, str, str] | tuple[None, None, None]:
+    def __fetch_dns_record(
+            headers: dict[str, str], domain_name_id: str, dns_record_name: str
+    ) -> tuple[str, str, str] | tuple[None, None, None]:
         url = f"https://api.cloudflare.com/client/v4/zones/{domain_name_id}/dns_records"
         try:
             response = requests.get(url, headers=headers)
@@ -67,19 +101,3 @@ class DDNS:
         except requests.RequestException as e:
             logging.error(f"Failed to retrieve DNS record: {e}")
         return None, None, None
-
-    @staticmethod
-    def fetch_current_ip(dns_record_type: str) -> str | None:
-        if dns_record_type == "A":
-            url = "https://ip.3322.net/"
-        elif dns_record_type == "AAAA":
-            url = "https://speed.neu6.edu.cn/getIP.php"
-        else:
-            raise ValueError("Unsupported DNS record type.")
-        try:
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.text.strip()
-        except requests.RequestException as e:
-            logging.error(f"Failed to get IP address: {e}")
-            return None
