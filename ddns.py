@@ -32,11 +32,13 @@ class DDNS:
             self.__headers,
             self.__get_domain_name(self.dns_record_name)
         )
-        self.dns_record_id, self.dns_record_type, _ = await self.__fetch_dns_record(
+        dns_record = await self.__fetch_dns_record(
             self.__headers,
             self.domain_id,
             self.dns_record_name
         )
+        self.dns_record_id = dns_record["id"]
+        self.dns_record_type = dns_record["type"]
 
     async def update_dns_record(self, new_ip: str):
         url = f"https://api.cloudflare.com/client/v4/zones/{self.domain_id}/dns_records/{self.dns_record_id}"
@@ -54,8 +56,8 @@ class DDNS:
             logging.error(f"Failed to update DNS record: {e}")
 
     async def get_record_content(self):
-        _, _, record_content = await self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name)
-        return record_content
+        dns_record = await self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name)
+        return dns_record["content"]
 
     async def fetch_current_ip(self) -> str:
         url = IP_SERVICES[self.ip_service][self.dns_record_type]
@@ -84,13 +86,17 @@ class DDNS:
     @staticmethod
     async def __fetch_dns_record(
             headers: dict[str, str], domain_name_id: str, dns_record_name: str
-    ) -> tuple[str, str, str]:
-        url = f"https://api.cloudflare.com/client/v4/zones/{domain_name_id}/dns_records"
+    ) -> dict[str, str]:
+        url = f"https://api.cloudflare.com/client/v4/zones/{domain_name_id}/dns_records?name={dns_record_name}"
         try:
             response = await send_request("GET", url, headers=headers)
         except Exception as e:
             raise Exception(f"Failed to retrieve DNS record: {e}")
-        for record in response["result"]:
-            if record["name"] == dns_record_name:
-                return record["id"], record["type"], record["content"]
-        raise Exception(f"DNS record {dns_record_name} not found.")
+        if not response["result"]:
+            raise Exception(f"DNS record {dns_record_name} not found.")
+        record = response["result"][0]
+        return {
+            "id": record["id"],
+            "type": record["type"],
+            "content": record["content"]
+        }
