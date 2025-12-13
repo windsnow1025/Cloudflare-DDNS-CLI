@@ -54,46 +54,43 @@ class DDNS:
             logging.error(f"Failed to update DNS record: {e}")
 
     async def get_record_content(self):
-        return (await self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name))[2]
+        _, _, record_content = await self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name)
+        return record_content
 
-    async def fetch_current_ip(self) -> str | None:
-        if self.dns_record_type not in ("A", "AAAA"):
-            raise ValueError("Unsupported DNS record type.")
-
+    async def fetch_current_ip(self) -> str:
         url = IP_SERVICES[self.ip_service][self.dns_record_type]
         try:
-            response = await send_request("GET", url)
-            return str(response).strip() if response else None
+            response: str = await send_request("GET", url)
+            return response.strip()
         except Exception as e:
-            logging.error(f"Failed to get IP address: {e}")
-            return None
+            raise Exception(f"Failed to get IP address: {e}")
 
     @staticmethod
     def __get_domain_name(dns_record_name: str):
         return ".".join(dns_record_name.split(".")[-2:])
 
     @staticmethod
-    async def __fetch_domain_id(headers: dict[str, str], domain_name: str) -> str | None:
+    async def __fetch_domain_id(headers: dict[str, str], domain_name: str) -> str:
         url = "https://api.cloudflare.com/client/v4/zones"
         try:
             response = await send_request("GET", url, headers=headers)
-            for domain in response["result"]:
-                if domain["name"] == domain_name:
-                    return domain["id"]
         except Exception as e:
-            logging.error(f"Failed to retrieve domain ID: {e}")
-        return None
+            raise Exception(f"Failed to retrieve domain ID: {e}")
+        for domain in response["result"]:
+            if domain["name"] == domain_name:
+                return domain["id"]
+        raise Exception(f"Domain {domain_name} not found.")
 
     @staticmethod
     async def __fetch_dns_record(
             headers: dict[str, str], domain_name_id: str, dns_record_name: str
-    ) -> tuple[str, str, str] | tuple[None, None, None]:
+    ) -> tuple[str, str, str]:
         url = f"https://api.cloudflare.com/client/v4/zones/{domain_name_id}/dns_records"
         try:
             response = await send_request("GET", url, headers=headers)
-            for record in response["result"]:
-                if record["name"] == dns_record_name:
-                    return record["id"], record["type"], record["content"]
         except Exception as e:
-            logging.error(f"Failed to retrieve DNS record: {e}")
-        return None, None, None
+            raise Exception(f"Failed to retrieve DNS record: {e}")
+        for record in response["result"]:
+            if record["name"] == dns_record_name:
+                return record["id"], record["type"], record["content"]
+        raise Exception(f"DNS record {dns_record_name} not found.")

@@ -37,7 +37,7 @@ async def send_request(
         url: str,
         headers: dict = None,
         data: dict = None,
-) -> dict:
+) -> dict | str:
     try:
         response = await _send_request_with_retry(method, url, headers, data)
     except (httpx.ConnectError, httpcore.ConnectError) as e:
@@ -51,8 +51,7 @@ async def send_request(
         logging.exception(detail)
         raise HTTPException(status_code=500, detail=detail)
 
-    if response.status_code != 200:
-        logging.error(f"Error {response.status_code}: {response.text}")
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-
-    return response.json()
+    content_type = response.headers["content-type"]
+    if "application/json" in content_type:
+        return response.json()
+    return response.text

@@ -49,11 +49,14 @@ def load_config():
 
 
 async def update_dns_records(ddns_objects):
+    ip_cache = {}
     for ddns in ddns_objects:
         try:
+            if ddns.dns_record_type not in ip_cache:
+                ip_cache[ddns.dns_record_type] = await ddns.fetch_current_ip()
+            current_ip = ip_cache[ddns.dns_record_type]
             record_content = await ddns.get_record_content()
-            current_ip = await ddns.fetch_current_ip()
-            if current_ip != record_content and current_ip is not None:
+            if current_ip != record_content:
                 logging.info(
                     f"{ddns.dns_record_name} - Current IP {current_ip} is different from DNS record {record_content}. Updating..."
                 )
