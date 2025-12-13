@@ -2,19 +2,7 @@
 
 ## Usage
 
-### Requirements
-
-Recommended: Windows 11 x64
-
-### Basic
-
 Global API Key: [https://dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
-
-### Advanced
-
-IPv4 and IPv6 Address Checking API changeable in `ddns.py` - `fetch_current_ip()`.
-
-DNS Record update interval changeable in `main.py` - `main()`.
 
 ## Development
 
@@ -32,10 +20,10 @@ DNS Record update interval changeable in `main.py` - `main()`.
 1. Add New Interpreter >> Add Local Interpreter
   - Environment: Select existing
   - Type: uv
-2. Add New Configuration >> uv run >> script: `./main.py`
+2. Add New Configuration >> uv run >> script: `./app/main.py`
 
 ### Build
 
 ```bash
-uv run pyinstaller --onefile main.py
+uv run pyinstaller --onefile app/main.py
 ```

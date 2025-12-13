@@ -3,7 +3,9 @@ import json
 import logging
 import os
 
-from ddns import DDNS, IP_SERVICES
+from cloudflare import fetch_dns_record, update_dns_record
+from ddns import DDNS
+from ip import IP_SERVICES, fetch_current_ip
 
 
 def load_config():
@@ -48,19 +50,28 @@ def load_config():
     return data["ip_service"], data["records"]
 
 
-async def update_dns_records(ddns_objects):
+async def update_dns_records(ddns_objects: list[DDNS], ip_service: str):
     ip_cache = {}
     for ddns in ddns_objects:
         try:
             if ddns.dns_record_type not in ip_cache:
-                ip_cache[ddns.dns_record_type] = await ddns.fetch_current_ip()
+                ip_cache[ddns.dns_record_type] = await fetch_current_ip(ip_service, ddns.dns_record_type)
             current_ip = ip_cache[ddns.dns_record_type]
-            record_content = await ddns.get_record_content()
+            dns_record = await fetch_dns_record(ddns.headers, ddns.domain_id, ddns.dns_record_name)
+            record_content = dns_record.content
             if current_ip != record_content:
                 logging.info(
                     f"{ddns.dns_record_name} - Current IP {current_ip} is different from DNS record {record_content}. Updating..."
                 )
-                await ddns.update_dns_record(current_ip)
+                response = await update_dns_record(
+                    ddns.headers,
+                    ddns.dns_record_name,
+                    ddns.domain_id,
+                    ddns.dns_record_id,
+                    ddns.dns_record_type,
+                    current_ip
+                )
+                logging.info(f"DNS record updated successfully: {response}")
             else:
                 logging.info(f"{ddns.dns_record_name} - IP address unchanged.")
         except Exception as e:
@@ -74,13 +85,16 @@ async def main():
 
     ddns_objects = []
     for config in configs:
-        ddns = DDNS(config["email"], config["global_api_key"], config["dns_record_name"], ip_service)
-        await ddns.init_dns_record()
+        ddns = DDNS(config["email"], config["global_api_key"], config["dns_record_name"])
+        try:
+            await ddns.init_dns_record()
+        except Exception as e:
+            raise Exception(f"Failed to initialize {config['dns_record_name']}: {e}")
         ddns_objects.append(ddns)
     logging.info("DNS records initialized successfully.")
 
     while True:
-        await update_dns_records(ddns_objects)
+        await update_dns_records(ddns_objects, ip_service)
         await asyncio.sleep(60)
 
 

@@ -46,10 +46,6 @@ async def send_request(
 ) -> dict | str:
     try:
         response = await _send_request_with_retry(method, url, headers, data)
-        content_type = response.headers["content-type"]
-        if "application/json" in content_type:
-            return response.json()
-        return response.text
     except (httpx.ConnectError, httpcore.ConnectError) as e:
         detail = f"Connection failed after retries: {e}"
         logging.exception(detail)
@@ -60,3 +56,8 @@ async def send_request(
         detail = f"Unknown error: {e}"
         logging.exception(detail)
         raise HTTPException(status_code=500, detail=detail)
+    
+    content_type = response.headers.get("content-type")
+    if "application/json" in content_type:
+        return response.json()
+    return response.text
