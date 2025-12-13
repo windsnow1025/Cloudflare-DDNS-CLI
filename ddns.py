@@ -1,5 +1,6 @@
-import requests
 import logging
+
+from util import send_request
 
 IP_SERVICES = {
     "international": {
@@ -25,20 +26,19 @@ class DDNS:
         self.domain_id = None
         self.dns_record_id = None
         self.dns_record_type = None
-        self.__init_dns_record()
 
-    def __init_dns_record(self):
-        self.domain_id = self.__fetch_domain_id(
+    async def init_dns_record(self):
+        self.domain_id = await self.__fetch_domain_id(
             self.__headers,
             self.__get_domain_name(self.dns_record_name)
         )
-        self.dns_record_id, self.dns_record_type, _ = self.__fetch_dns_record(
+        self.dns_record_id, self.dns_record_type, _ = await self.__fetch_dns_record(
             self.__headers,
             self.domain_id,
             self.dns_record_name
         )
 
-    def update_dns_record(self, new_ip: str):
+    async def update_dns_record(self, new_ip: str):
         url = f"https://api.cloudflare.com/client/v4/zones/{self.domain_id}/dns_records/{self.dns_record_id}"
         data = {
             "type": self.dns_record_type,
@@ -48,25 +48,23 @@ class DDNS:
             "proxied": False
         }
         try:
-            response = requests.put(url, headers=self.__headers, json=data)
-            response.raise_for_status()
-            logging.info(f"DNS record updated successfully: {response.json()}")
-        except requests.RequestException as e:
+            response = await send_request("PUT", url, headers=self.__headers, data=data)
+            logging.info(f"DNS record updated successfully: {response}")
+        except Exception as e:
             logging.error(f"Failed to update DNS record: {e}")
 
-    def get_record_content(self):
-        return self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name)[2]
+    async def get_record_content(self):
+        return (await self.__fetch_dns_record(self.__headers, self.domain_id, self.dns_record_name))[2]
 
-    def fetch_current_ip(self) -> str | None:
+    async def fetch_current_ip(self) -> str | None:
         if self.dns_record_type not in ("A", "AAAA"):
             raise ValueError("Unsupported DNS record type.")
 
         url = IP_SERVICES[self.ip_service][self.dns_record_type]
         try:
-            response = requests.get(url)
-            response.raise_for_status()
-            return response.text.strip()
-        except requests.RequestException as e:
+            response = await send_request("GET", url)
+            return str(response).strip() if response else None
+        except Exception as e:
             logging.error(f"Failed to get IP address: {e}")
             return None
 
@@ -75,29 +73,27 @@ class DDNS:
         return ".".join(dns_record_name.split(".")[-2:])
 
     @staticmethod
-    def __fetch_domain_id(headers: dict[str, str], domain_name: str) -> str | None:
+    async def __fetch_domain_id(headers: dict[str, str], domain_name: str) -> str | None:
         url = "https://api.cloudflare.com/client/v4/zones"
         try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            for domain in response.json()["result"]:
+            response = await send_request("GET", url, headers=headers)
+            for domain in response["result"]:
                 if domain["name"] == domain_name:
                     return domain["id"]
-        except requests.RequestException as e:
+        except Exception as e:
             logging.error(f"Failed to retrieve domain ID: {e}")
         return None
 
     @staticmethod
-    def __fetch_dns_record(
+    async def __fetch_dns_record(
             headers: dict[str, str], domain_name_id: str, dns_record_name: str
     ) -> tuple[str, str, str] | tuple[None, None, None]:
         url = f"https://api.cloudflare.com/client/v4/zones/{domain_name_id}/dns_records"
         try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            for record in response.json()["result"]:
+            response = await send_request("GET", url, headers=headers)
+            for record in response["result"]:
                 if record["name"] == dns_record_name:
                     return record["id"], record["type"], record["content"]
-        except requests.RequestException as e:
+        except Exception as e:
             logging.error(f"Failed to retrieve DNS record: {e}")
         return None, None, None

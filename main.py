@@ -1,7 +1,8 @@
+import asyncio
 import json
 import logging
 import os
-import time
+
 from ddns import DDNS, IP_SERVICES
 
 
@@ -47,37 +48,38 @@ def load_config():
     return data["ip_service"], data["records"]
 
 
-def update_dns_records(ddns_objects):
+async def update_dns_records(ddns_objects):
     for ddns in ddns_objects:
         try:
-            record_content = ddns.get_record_content()
-            current_ip = ddns.fetch_current_ip()
+            record_content = await ddns.get_record_content()
+            current_ip = await ddns.fetch_current_ip()
             if current_ip != record_content and current_ip is not None:
                 logging.info(
                     f"{ddns.dns_record_name} - Current IP {current_ip} is different from DNS record {record_content}. Updating..."
                 )
-                ddns.update_dns_record(current_ip)
+                await ddns.update_dns_record(current_ip)
             else:
                 logging.info(f"{ddns.dns_record_name} - IP address unchanged.")
         except Exception as e:
             logging.error(f"Error updating DNS record: {e}")
 
 
-def main():
+async def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     ip_service, configs = load_config()
     logging.info(f"Using IP service: {ip_service} ({IP_SERVICES[ip_service]})")
 
-    ddns_objects = [
-        DDNS(config["email"], config["global_api_key"], config["dns_record_name"], ip_service)
-        for config in configs
-    ]
+    ddns_objects = []
+    for config in configs:
+        ddns = DDNS(config["email"], config["global_api_key"], config["dns_record_name"], ip_service)
+        await ddns.init_dns_record()
+        ddns_objects.append(ddns)
     logging.info("DNS records initialized successfully.")
 
     while True:
-        update_dns_records(ddns_objects)
-        time.sleep(60)
+        await update_dns_records(ddns_objects)
+        await asyncio.sleep(60)
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

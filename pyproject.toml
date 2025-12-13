@@ -4,7 +4,10 @@ version = "0.3.0"
 description = "Cloudflare DDNS CLI"
 readme = "README.md"
 dependencies = [
-    "requests"
+    "fastapi>=0.124.4",
+    "httpx",
+    "requests",
+    "tenacity",
 ]
 requires-python = ">=3.12"
 
