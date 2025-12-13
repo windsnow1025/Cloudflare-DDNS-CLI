@@ -36,22 +36,31 @@ async def fetch_domain_id(headers: Headers, domain_name: str) -> str:
     raise Exception(f"Domain {domain_name} not found.")
 
 
-async def fetch_dns_record(
+async def fetch_dns_records(
         headers: Headers, domain_name_id: str, dns_record_name: str
-) -> DNSRecord:
+) -> dict[str, DNSRecord]:
     url = f"https://api.cloudflare.com/client/v4/zones/{domain_name_id}/dns_records?name={dns_record_name}"
     try:
         response = await send_request("GET", url, headers=convert_headers_to_dict(headers))
     except Exception as e:
-        raise Exception(f"Failed to retrieve DNS record: {e}")
-    if not response["result"]:
+        raise Exception(f"Failed to retrieve DNS records: {e}")
+    records = response["result"]
+    if not records:
         raise Exception(f"DNS record {dns_record_name} not found.")
-    record = response["result"][0]
-    return DNSRecord(
-        id=record["id"],
-        type=record["type"],
-        content=record["content"]
-    )
+
+    dns_records = {}
+    for record in records:
+        if record["type"] in ("A", "AAAA"):
+            dns_records[record["type"]] = DNSRecord(
+                id=record["id"],
+                type=record["type"],
+                content=record["content"]
+            )
+
+    if not dns_records:
+        raise Exception(f"No A or AAAA records found for {dns_record_name}.")
+
+    return dns_records
 
 
 async def update_dns_record(

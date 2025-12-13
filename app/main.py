@@ -3,7 +3,7 @@ import json
 import logging
 import os
 
-from cloudflare import fetch_dns_record, update_dns_record
+from cloudflare import fetch_dns_records, update_dns_record
 from ddns import DDNS
 from ip import IP_SERVICES, fetch_current_ip
 
@@ -51,31 +51,42 @@ def load_config():
 
 
 async def update_dns_records(ddns_objects: list[DDNS], ip_service: str):
-    ip_cache = {}
+    ip_cache: dict[str, str] = {}
+
     for ddns in ddns_objects:
-        try:
-            if ddns.dns_record_type not in ip_cache:
-                ip_cache[ddns.dns_record_type] = await fetch_current_ip(ip_service, ddns.dns_record_type)
-            current_ip = ip_cache[ddns.dns_record_type]
-            dns_record = await fetch_dns_record(ddns.headers, ddns.domain_id, ddns.dns_record_name)
-            record_content = dns_record.content
-            if current_ip != record_content:
-                logging.info(
-                    f"{ddns.dns_record_name} - Current IP {current_ip} is different from DNS record {record_content}. Updating..."
+        for record_type, dns_record in ddns.dns_records.items():
+            try:
+                if record_type not in ip_cache:
+                    try:
+                        ip_cache[record_type] = await fetch_current_ip(ip_service, record_type)
+                    except Exception as e:
+                        raise Exception(f"Failed to get {record_type} IP: {e}")
+                current_ip = ip_cache[record_type]
+
+                current_records = await fetch_dns_records(
+                    ddns.headers, ddns.domain_id, ddns.dns_record_name
                 )
-                response = await update_dns_record(
-                    ddns.headers,
-                    ddns.dns_record_name,
-                    ddns.domain_id,
-                    ddns.dns_record_id,
-                    ddns.dns_record_type,
-                    current_ip
-                )
-                logging.info(f"DNS record updated successfully: {response}")
-            else:
-                logging.info(f"{ddns.dns_record_name} - IP address unchanged.")
-        except Exception as e:
-            logging.error(f"Error updating DNS record: {e}")
+                record_content = current_records[record_type].content
+
+                if current_ip != record_content:
+                    logging.info(
+                        f"{ddns.dns_record_name} ({record_type}) - "
+                        f"Current IP {current_ip} differs from DNS record {record_content}. Updating..."
+                    )
+                    response = await update_dns_record(
+                        ddns.headers,
+                        ddns.dns_record_name,
+                        ddns.domain_id,
+                        dns_record.id,
+                        record_type,
+                        current_ip
+                    )
+                    logging.info(f"{ddns.dns_record_name} ({record_type}) - Updated successfully: {response}")
+                else:
+                    logging.info(f"{ddns.dns_record_name} ({record_type}) - IP address unchanged.")
+
+            except Exception as e:
+                logging.error(f"Error updating {ddns.dns_record_name} ({record_type}): {e}")
 
 
 async def main():
@@ -88,10 +99,13 @@ async def main():
         ddns = DDNS(config["email"], config["global_api_key"], config["dns_record_name"])
         try:
             await ddns.init_dns_record()
+            logging.info(
+                f"Initialized {config['dns_record_name']} with record types: {ddns.record_types}"
+            )
         except Exception as e:
             raise Exception(f"Failed to initialize {config['dns_record_name']}: {e}")
         ddns_objects.append(ddns)
-    logging.info("DNS records initialized successfully.")
+    logging.info("All DNS records initialized successfully.")
 
     while True:
         await update_dns_records(ddns_objects, ip_service)

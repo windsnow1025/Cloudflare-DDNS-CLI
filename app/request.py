@@ -56,8 +56,8 @@ async def send_request(
         detail = f"Unknown error: {e}"
         logging.exception(detail)
         raise HTTPException(status_code=500, detail=detail)
-    
-    content_type = response.headers.get("content-type")
+
+    content_type = response.headers.get("content-type", "")
     if "application/json" in content_type:
         return response.json()
     return response.text
