@@ -1,0 +1,14 @@
+[project]
+name = "Cloudflare-DDNS-CLI"
+version = "0.3.0"
+description = "Cloudflare DDNS CLI"
+readme = "README.md"
+dependencies = [
+    "requests"
+]
+requires-python = ">=3.12"
+
+[dependency-groups]
+dev = [
+    "pyinstaller",
+]

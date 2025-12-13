@@ -18,18 +18,24 @@ DNS Record update interval changeable in `main.py` - `main()`.
 
 ## Development
 
-### Requirements
+### Python uv
 
-Recommended: Python 3.12
+1. Install uv: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+2. Install Python in uv: `uv python install 3.12`; upgrade Python in uv: `uv python install 3.12`
+3. Configure requirements:
+  ```bash
+  uv sync --refresh
+  ```
+
+### Pycharm Professional
+
+1. Add New Interpreter >> Add Local Interpreter
+  - Environment: Select existing
+  - Type: uv
+2. Add New Configuration >> uv run >> script: `./main.py`
 
 ### Build
 
 ```bash
-pip install -r requirements.txt
+uv run pyinstaller --onefile main.py
 ```
-
-```bash
-pyinstaller --onefile main.py
-```
-
-
