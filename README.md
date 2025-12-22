@@ -15,7 +15,7 @@ Global API Key: [https://dash.cloudflare.com/profile/api-tokens](https://dash.cl
   uv sync --refresh
   ```
 
-### Pycharm Professional
+### Pycharm
 
 1. Add New Interpreter >> Add Local Interpreter
   - Environment: Select existing
